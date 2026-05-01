@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>実験ツリー</title>
+  <style>
+    :root {
+      --primary:      #4f46e5;
+      --primary-dk:   #3730a3;
+      --primary-lt:   #ede9fe;
+      --success:      #059669;
+      --success-lt:   #d1fae5;
+      --warn:         #b45309;
+      --warn-lt:      #fef3c7;
+      --danger:       #dc2626;
+      --hyp:          #7c3aed;
+      --hyp-lt:       #f5f3ff;
+      --border:       #e5e7eb;
+      --bg:           #f9fafb;
+      --surface:      #ffffff;
+      --text:         #111827;
+      --text-muted:   #6b7280;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--primary);
+      color: white;
+      padding: 0.625rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      z-index: 10;
+    }
+    header h1 { font-size: 1rem; font-weight: 700; }
+    .spacer { flex: 1; }
+
+    .view-tabs {
+      display: flex;
+      background: rgba(255,255,255,0.18);
+      border-radius: 0.375rem;
+      overflow: hidden;
+      margin-left: 0.5rem;
+    }
+    .view-tabs button {
+      padding: 0.3rem 0.875rem;
+      border: none;
+      background: transparent;
+      color: rgba(255,255,255,0.75);
+      cursor: pointer;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      transition: all 0.15s;
+    }
+    .view-tabs button.active { background: white; color: var(--primary); }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 0.4rem 0.875rem;
+      border: none; border-radius: 0.375rem;
+      cursor: pointer; font-size: 0.8125rem; font-weight: 600;
+      transition: all 0.15s; white-space: nowrap;
+    }
+    .btn-white   { background: white; color: var(--primary); }
+    .btn-white:hover { background: #f0f0ff; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dk); }
+    .btn-danger  { background: var(--danger); color: white; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover { background: var(--bg); }
+    .btn-ghost   { background: transparent; border: none; color: var(--text-muted); cursor: pointer; }
+    .btn-ghost:hover { color: var(--text); background: var(--bg); border-radius: 0.25rem; }
+    .btn-sm  { padding: 0.25rem 0.625rem; font-size: 0.75rem; }
+    .btn-xs  { padding: 0.15rem 0.5rem;   font-size: 0.7rem; }
+    .btn:disabled { opacity: 0.4; pointer-events: none; }
+
+    /* ── App Body ── */
+    .app-body {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ── View areas ── */
+    .view-area {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    /* ── Tree toolbar ── */
+    .tree-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.875rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .tree-toolbar .hint {
+      margin-left: auto;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    /* ── SVG Canvas ── */
+    #treeSvg {
+      flex: 1;
+      width: 100%;
+      cursor: grab;
+      background-color: #fafafa;
+      background-image: radial-gradient(circle, #d1d5db 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+    #treeSvg:active { cursor: grabbing; }
+
+    /* ── Tree Node (inside foreignObject) ── */
+    .tn {
+      width: 214px;
+      height: 122px;
+      padding: 8px 10px 6px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      overflow: hidden;
+      pointer-events: none;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      user-select: none;
+    }
+    .tn-name {
+      font-size: 0.8125rem;
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-shrink: 0;
+    }
+    .tn-params {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-family: monospace;
+      flex: 1;
+      overflow: hidden;
+      line-height: 1.5;
+    }
+    .tn-results {
+      font-size: 0.7rem;
+      color: var(--success);
+      font-family: monospace;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-shrink: 0;
+    }
+    .tn-tags {
+      display: flex;
+      gap: 4px;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .tn-tag {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .tn-chg { color: var(--warn);    font-weight: 700; }
+    .tn-add { color: var(--success); font-weight: 700; }
+
+    /* ── Detail Panel ── */
+    .detail-panel {
+      width: 300px;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .dp-header {
+      padding: 0.875rem 1rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+    .dp-header h3 { font-size: 0.9375rem; font-weight: 700; flex: 1; word-break: break-all; line-height: 1.4; }
+    .dp-close { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 1.25rem; line-height: 1; flex-shrink: 0; padding: 0.125rem; }
+    .dp-close:hover { color: var(--text); }
+    .dp-body { flex: 1; overflow-y: auto; padding: 0.875rem 1rem; display: flex; flex-direction: column; gap: 0.875rem; }
+    .dp-actions { padding: 0.75rem 1rem; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.5rem; }
+    .dp-actions-row { display: flex; gap: 0.5rem; }
+
+    .sec-title {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+      margin-bottom: 0.3rem;
+    }
+    .kv-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.2rem 0.625rem;
+    }
+    .kv-key { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; align-self: start; padding-top: 1px; }
+    .kv-val { font-family: monospace; font-size: 0.8rem; word-break: break-all; }
+    .kv-val.chg { color: var(--warn);    background: var(--warn-lt);    padding: 0 4px; border-radius: 3px; }
+    .kv-val.add { color: var(--success); background: var(--success-lt); padding: 0 4px; border-radius: 3px; }
+    .kv-val.res { color: var(--success); }
+
+    .dp-hyp {
+      font-size: 0.8rem;
+      font-style: italic;
+      color: var(--hyp);
+      background: var(--hyp-lt);
+      border-left: 3px solid var(--hyp);
+      padding: 0.4rem 0.625rem;
+      border-radius: 0 4px 4px 0;
+      line-height: 1.5;
+    }
+    .dp-comment {
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      background: var(--bg);
+      padding: 0.5rem 0.625rem;
+      border-radius: 0.375rem;
+      border: 1px solid var(--border);
+    }
+    .dp-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+    .dp-tag  { font-size: 0.7rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+
+    .diff-badge {
+      font-size: 0.6rem; font-weight: 700;
+      padding: 1px 4px; border-radius: 999px;
+      vertical-align: middle; margin-left: 2px;
+    }
+    .db-chg { background: var(--warn-lt);    color: var(--warn);    }
+    .db-add { background: var(--success-lt); color: var(--success); }
+    .db-del { background: #fee2e2;            color: #991b1b;        }
+
+    .parent-link { font-size: 0.8125rem; color: var(--primary); cursor: pointer; font-weight: 600; }
+    .parent-link:hover { text-decoration: underline; }
+
+    /* ── List View ── */
+    .list-container { flex: 1; overflow: auto; padding: 1.25rem; }
+    .list-toolbar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.875rem; flex-wrap: wrap; }
+    .tag-filter-bar { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; }
+
+    .fc { display: inline-flex; align-items: center; padding: 0.2rem 0.625rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; border: 2px solid transparent; cursor: pointer; }
+    .fc:hover { border-color: var(--primary); }
+    .fc.act { background: var(--primary) !important; color: white !important; }
+    .fc.clr { background: #fee2e2; color: #991b1b; }
+
+    .table-wrap { background: var(--surface); border-radius: 0.75rem; border: 1px solid var(--border); overflow-x: auto; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    table { width: 100%; border-collapse: collapse; min-width: 700px; }
+    thead tr { background: var(--bg); border-bottom: 2px solid var(--border); }
+    th { padding: 0.6rem 0.875rem; text-align: left; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); white-space: nowrap; }
+    td { padding: 0.7rem 0.875rem; border-bottom: 1px solid var(--border); font-size: 0.8125rem; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #f5f3ff; }
+
+    .name-link { font-weight: 700; color: var(--primary); cursor: pointer; }
+    .name-link:hover { text-decoration: underline; }
+    .date-cell { color: var(--text-muted); font-size: 0.75rem; white-space: nowrap; }
+    .tags-cell { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    .tag-chip { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 999px; font-size: 0.68rem; font-weight: 700; }
+    .mono-cell { font-family: monospace; font-size: 0.75rem; color: var(--text-muted); }
+    .res-cell  { font-family: monospace; font-size: 0.75rem; color: var(--success); font-weight: 700; }
+    .act-cell  { display: flex; gap: 0.375rem; }
+
+    input[type="checkbox"] { width: 1rem; height: 1rem; cursor: pointer; accent-color: var(--primary); }
+
+    .compare-bar { display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; }
+
+    .empty-state { text-align: center; padding: 5rem 2rem; color: var(--text-muted); }
+    .empty-state h3 { font-size: 1.125rem; color: var(--text); margin-bottom: 0.5rem; }
+
+    /* ── Compare View ── */
+    .compare-container { flex: 1; overflow: auto; padding: 1.25rem; }
+    .ct-wrap { background: var(--surface); border-radius: 0.75rem; border: 1px solid var(--border); overflow-x: auto; }
+    .ct { width: 100%; border-collapse: collapse; }
+    .ct th { background: var(--primary); color: white; padding: 0.625rem 1rem; text-align: left; font-size: 0.8rem; min-width: 180px; white-space: nowrap; }
+    .ct th.rh { background: var(--bg); color: var(--text-muted); min-width: 130px; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .ct td { padding: 0.5rem 1rem; border: 1px solid var(--border); font-size: 0.8125rem; }
+    .ct .rl { background: var(--bg); font-weight: 700; font-size: 0.75rem; color: var(--text-muted); }
+    .ct .diff { background: var(--warn-lt); font-weight: 700; font-family: monospace; }
+    .ct .mono { font-family: monospace; }
+    .ct .gv   { color: var(--success); font-family: monospace; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5); z-index: 200;
+      align-items: flex-start; justify-content: center;
+      padding: 2rem 1rem 4rem; overflow-y: auto;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface); border-radius: 0.75rem;
+      width: 100%; max-width: 600px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.25); margin: auto;
+    }
+    .modal-hdr { display: flex; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); }
+    .modal-hdr h2 { font-size: 1rem; font-weight: 700; flex: 1; }
+    .modal-close { background: none; border: none; font-size: 1.375rem; cursor: pointer; color: var(--text-muted); line-height: 1; padding: 0.125rem 0.375rem; border-radius: 0.25rem; }
+    .modal-close:hover { background: var(--bg); }
+    .modal-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+    .modal-ftr { display: flex; justify-content: flex-end; gap: 0.625rem; padding: 0.875rem 1.25rem; border-top: 1px solid var(--border); }
+
+    .fg label { display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.3rem; }
+    .fg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+
+    input[type="text"], textarea, select {
+      width: 100%; padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border); border-radius: 0.375rem;
+      font-size: 0.875rem; font-family: inherit;
+      background: var(--surface); color: var(--text);
+      transition: border-color 0.15s;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none; border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(79,70,229,0.12);
+    }
+    textarea { resize: vertical; min-height: 72px; line-height: 1.6; }
+    select { cursor: pointer; }
+
+    .pe { display: flex; flex-direction: column; gap: 0.375rem; }
+    .pr { display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.375rem; align-items: center; }
+    .pr-rm { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 1.125rem; line-height: 1; padding: 0.25rem 0.375rem; border-radius: 0.25rem; }
+    .pr-rm:hover { background: #fee2e2; }
+
+    .tags-wrap { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0.4rem 0.625rem; border: 1px solid var(--border); border-radius: 0.375rem; min-height: 2.5rem; cursor: text; background: var(--surface); }
+    .tags-wrap:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.12); }
+    .tc { display: inline-flex; align-items: center; gap: 0.2rem; padding: 2px 8px; background: var(--primary-lt); color: var(--primary); border-radius: 999px; font-size: 0.7rem; font-weight: 700; }
+    .tc-rm { background: none; border: none; cursor: pointer; color: var(--primary); font-size: 0.875rem; line-height: 1; padding: 0; }
+    .tc-rm:hover { color: var(--danger); }
+    .tag-inp { border: none; outline: none; background: transparent; font-size: 0.8125rem; min-width: 80px; flex: 1; font-family: inherit; }
+
+    .hyp-hint { font-size: 0.72rem; color: var(--hyp); background: var(--hyp-lt); border-left: 3px solid var(--hyp); padding: 0.3rem 0.625rem; border-radius: 0 4px 4px 0; margin-top: 0.3rem; }
+    .section-sep { display: flex; align-items: center; gap: 0.5rem; }
+    .section-sep span { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); white-space: nowrap; }
+    .section-sep::before, .section-sep::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>実験ツリー</h1>
+  <div class="view-tabs">
+    <button class="active" data-view="tree">ツリー</button>
+    <button data-view="list">リスト</button>
+    <button data-view="compare">比較</button>
+  </div>
+  <div class="spacer"></div>
+  <button class="btn btn-white" id="exportBtn">CSV</button>
+  <button class="btn btn-white" id="jsonExportBtn">JSON 保存</button>
+  <button class="btn btn-white" id="jsonImportBtn">JSON 読込</button>
+  <input type="file" id="jsonFileInput" accept=".json" style="display:none">
+  <button class="btn btn-white" id="newRootBtn">＋ 新規実験</button>
+</header>
+
+<div class="app-body">
+
+  <!-- ── Tree View ── -->
+  <div id="view-tree" class="view-area">
+    <div class="tree-toolbar">
+      <button class="btn btn-outline btn-sm" id="zoomInBtn">＋</button>
+      <button class="btn btn-outline btn-sm" id="zoomOutBtn">－</button>
+      <button class="btn btn-outline btn-sm" id="fitBtn">全体表示</button>
+      <span class="hint">クリック: 詳細パネル　ダブルクリック: 編集　ドラッグ: 移動　ホイール: ズーム</span>
+    </div>
+    <svg id="treeSvg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#9ca3af"/>
+        </marker>
+      </defs>
+      <g id="treeRoot">
+        <g id="edgeLayer"></g>
+        <g id="nodeLayer"></g>
+      </g>
+    </svg>
+  </div>
+
+  <!-- ── List View ── -->
+  <div id="view-list" class="view-area" style="display:none">
+    <div class="list-container">
+      <div class="list-toolbar">
+        <div id="listTagBar" class="tag-filter-bar"></div>
+      </div>
+      <div class="table-wrap" id="listWrap">
+        <table>
+          <thead><tr>
+            <th style="width:2rem"></th>
+            <th style="width:2rem">#</th>
+            <th>実験名</th>
+            <th>親実験</th>
+            <th>タグ</th>
+            <th>パラメータ</th>
+            <th>結果</th>
+            <th>作成日時</th>
+            <th>操作</th>
+          </tr></thead>
+          <tbody id="listBody"></tbody>
+        </table>
+      </div>
+      <div id="listEmpty" class="empty-state" style="display:none">
+        <h3>実験がありません</h3>
+        <p>「新規実験」ボタンから追加してください</p>
+      </div>
+      <div class="compare-bar" id="cmpBar" style="display:none">
+        <span id="cmpCount" style="font-size:0.875rem;color:var(--text-muted)">0 件選択中</span>
+        <button class="btn btn-primary btn-sm" id="doCmpBtn" disabled>比較する</button>
+        <button class="btn btn-outline btn-sm" id="clearCmpBtn">選択解除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Compare View ── -->
+  <div id="view-compare" class="view-area" style="display:none">
+    <div class="compare-container">
+      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">
+        <h2 style="font-size:1rem;font-weight:700">比較ビュー</h2>
+        <button class="btn btn-outline btn-sm" id="backFromCmp">← 戻る</button>
+      </div>
+      <div class="ct-wrap">
+        <table class="ct" id="cmpTable"></table>
+      </div>
+      <p style="margin-top:0.625rem;font-size:0.72rem;color:var(--text-muted)">黄色のセル = 実験間で異なる値</p>
+    </div>
+  </div>
+
+  <!-- ── Detail Panel ── -->
+  <div id="detailPanel" class="detail-panel" style="display:none">
+    <div class="dp-header">
+      <h3 id="dpName">—</h3>
+      <button class="dp-close" id="dpClose">&times;</button>
+    </div>
+    <div class="dp-body" id="dpBody"></div>
+    <div class="dp-actions">
+      <button class="btn btn-primary" id="addChildBtn" style="width:100%">＋ 子実験を追加</button>
+      <div class="dp-actions-row">
+        <button class="btn btn-outline" id="editBtn" style="flex:1">編集</button>
+        <button class="btn btn-danger"  id="delBtn"  style="flex:1">削除</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- app-body -->
+
+<!-- ── Modal ── -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-hdr">
+      <h2 id="modalTitle">新規実験</h2>
+      <button class="modal-close" id="modalClose">&times;</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="fg">
+        <label>実験名 *</label>
+        <input type="text" id="fName" placeholder="例: lr0.001_dropout0.3">
+      </div>
+
+      <div class="fg-row">
+        <div class="fg">
+          <label>親実験</label>
+          <select id="fParent"></select>
+        </div>
+        <div class="fg">
+          <label>タグ</label>
+          <div class="tags-wrap" id="tagsWrap">
+            <input type="text" class="tag-inp" id="fTagInp" placeholder="Enter で追加">
+          </div>
+        </div>
+      </div>
+
+      <div class="fg" id="hypField">
+        <label>仮説・動機</label>
+        <textarea id="fHyp" placeholder="なぜこの実験をするか？前の実験からどんな仮説を立てたか？"></textarea>
+        <div class="hyp-hint">この仮説はツリーの接続線に表示されます</div>
+      </div>
+
+      <div class="section-sep"><span>パラメータ（入力条件）</span></div>
+      <div class="fg">
+        <div class="pe" id="paramsEd"></div>
+        <button class="btn btn-outline btn-sm" id="addParamBtn" style="margin-top:0.375rem;align-self:flex-start">＋ 追加</button>
+      </div>
+
+      <div class="section-sep"><span>結果</span></div>
+      <div class="fg">
+        <div class="pe" id="resultsEd"></div>
+        <button class="btn btn-outline btn-sm" id="addResBtn" style="margin-top:0.375rem;align-self:flex-start">＋ 追加</button>
+      </div>
+
+      <div class="fg">
+        <label>コメント・考察</label>
+        <textarea id="fComment" placeholder="気づき、次のアクション、参考にした情報など..."></textarea>
+      </div>
+
+    </div>
+    <div class="modal-ftr">
+      <button class="btn btn-outline" id="modalCancel">キャンセル</button>
+      <button class="btn btn-primary" id="modalSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Constants
+// ============================================================
+const STORE   = 'exp_tree_v2';
+const NW      = 218;   // node width
+const NH      = 122;   // node height
+const HGAP    = 64;    // horizontal gap between subtrees
+const VGAP    = 94;    // vertical gap between levels
+const COLORS  = ['#4f46e5','#0891b2','#059669','#d97706','#dc2626','#7c3aed','#db2777','#0d9488'];
+
+// ============================================================
+// State
+// ============================================================
+let exps       = [];
+let selId      = null;    // selected experiment id
+let view       = 'tree';
+let tagFilt    = null;
+let cmpIds     = new Set();
+
+// SVG pan/zoom
+let tf = { x: 60, y: 60, s: 1 };
+let panning = false, panO = {};
+
+// Modal state
+let editId = null, mPid = null;
+let mTags = [], mParams = [], mResults = [];
+
+// ============================================================
+// Storage
+// ============================================================
+function load() {
+  try { const r = localStorage.getItem(STORE); if (r) exps = JSON.parse(r).exps || []; }
+  catch(e) { exps = []; }
+}
+function persist() { localStorage.setItem(STORE, JSON.stringify({ exps })); }
+
+// ============================================================
+// Utilities
+// ============================================================
+const uid  = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const esc  = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const byId = id => exps.find(e => e.id === id);
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('ja-JP', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+}
+
+function tagColor(tag) {
+  let h = 0;
+  for (const c of String(tag)) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
+  return COLORS[h % COLORS.length];
+}
+
+function getAllTags() {
+  const s = new Set();
+  for (const e of exps) for (const t of (e.tags||[])) s.add(t);
+  return [...s].sort();
+}
+
+// ============================================================
+// Tree Layout
+// ============================================================
+function buildChildMap() {
+  const ids = new Set(exps.map(e => e.id));
+  const m = { __root: [] };
+  for (const e of exps) {
+    const pid = (e.parentId && ids.has(e.parentId)) ? e.parentId : null;
+    const key = pid ?? '__root';
+    if (!m[key]) m[key] = [];
+    m[key].push(e.id);
+  }
+  return m;
+}
+
+function computeLayout() {
+  const cm = buildChildMap();
+  const pos = {};
+
+  function subW(id) {
+    const ch = cm[id] || [];
+    if (!ch.length) return NW;
+    const cw = ch.map(subW);
+    return Math.max(NW, cw.reduce((a,b) => a+b, 0) + HGAP * (ch.length - 1));
+  }
+
+  function place(id, cx, cy) {
+    pos[id] = { x: cx - NW/2, y: cy };
+    const ch = cm[id] || [];
+    if (!ch.length) return;
+    const cws = ch.map(subW);
+    const tot = cws.reduce((a,b) => a+b, 0) + HGAP * (ch.length - 1);
+    let lx = cx - tot/2;
+    for (let i = 0; i < ch.length; i++) {
+      place(ch[i], lx + cws[i]/2, cy + NH + VGAP);
+      lx += cws[i] + HGAP;
+    }
+  }
+
+  let rx = 0;
+  for (const rid of (cm.__root || [])) {
+    const w = subW(rid);
+    place(rid, rx + w/2, 0);
+    rx += w + HGAP;
+  }
+  return { pos, cm };
+}
+
+// ============================================================
+// Render Tree
+// ============================================================
+function renderTree() {
+  if (view !== 'tree') return;
+  const { pos, cm } = computeLayout();
+  const eL = document.getElementById('edgeLayer');
+  const nL = document.getElementById('nodeLayer');
+
+  // ── Empty state ──
+  if (!exps.length) {
+    eL.innerHTML = '';
+    nL.innerHTML = `
+      <foreignObject x="50%" y="40%" width="260" height="100" transform="translate(-130,-50)">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="text-align:center;color:#9ca3af;font-family:sans-serif">
+          <div style="font-size:1rem;font-weight:700;color:#6b7280;margin-bottom:0.5rem">実験がありません</div>
+          <div style="font-size:0.8rem">右上「新規実験」から追加してください</div>
+        </div>
+      </foreignObject>`;
+    return;
+  }
+
+  let eSvg = '', nSvg = '';
+
+  // ── Edges ──
+  for (const e of exps) {
+    if (!e.parentId || !pos[e.parentId] || !pos[e.id]) continue;
+    const p  = pos[e.parentId];
+    const c  = pos[e.id];
+    const x1 = p.x + NW/2, y1 = p.y + NH;
+    const x2 = c.x + NW/2, y2 = c.y;
+    const mx = (x1+x2)/2,  my = (y1+y2)/2;
+    const cy1 = y1 + VGAP*0.45, cy2 = y2 - VGAP*0.45;
+
+    eSvg += `<path d="M${x1},${y1} C${x1},${cy1} ${x2},${cy2} ${x2},${y2}"
+      fill="none" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#arr)"/>`;
+
+    if (e.hypothesis) {
+      const hyp = e.hypothesis.length > 32 ? e.hypothesis.slice(0,30) + '…' : e.hypothesis;
+      const tw  = Math.min(hyp.length * 6.2 + 12, 190);
+      eSvg += `
+        <rect x="${mx-tw/2}" y="${my-9}" width="${tw}" height="17" rx="3"
+          fill="white" stroke="#e5e7eb" stroke-width="1"/>
+        <text x="${mx}" y="${my+4}" text-anchor="middle"
+          font-size="10" font-style="italic" fill="#7c3aed"
+          font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">${esc(hyp)}</text>`;
+    }
+  }
+
+  // ── Nodes ──
+  for (const e of exps) {
+    const p = pos[e.id];
+    if (!p) continue;
+    const isSel  = selId === e.id;
+    const isRoot = !e.parentId || !byId(e.parentId);
+    const par    = e.parentId ? byId(e.parentId) : null;
+
+    // Diff from parent
+    const pp = par?.params  || {}, cp = e.params  || {};
+    const chg = new Set(), add = new Set();
+    for (const k of Object.keys(cp)) {
+      if (!(k in pp)) add.add(k);
+      else if (pp[k] !== cp[k]) chg.add(k);
+    }
+
+    const accent = isRoot ? '#0891b2' : '#4f46e5';
+    const bStroke = isSel ? '#4f46e5' : isRoot ? '#0891b2' : '#d1d5db';
+    const bWidth  = isSel ? 2.5 : 1.5;
+    const shadow  = isSel
+      ? 'filter:drop-shadow(0 0 7px rgba(79,70,229,0.45))'
+      : 'filter:drop-shadow(0 1px 3px rgba(0,0,0,0.1))';
+
+    // Build HTML content for node
+    const params  = e.params  || {};
+    const results = e.results || {};
+    const pKeys   = Object.keys(params);
+    const rKeys   = Object.keys(results);
+
+    let paramsHtml = '';
+    if (pKeys.length === 0) {
+      paramsHtml = '<span style="color:#d1d5db;font-style:italic">—</span>';
+    } else {
+      paramsHtml = pKeys.slice(0,3).map(k => {
+        const cls = chg.has(k) ? ' class="tn-chg"' : add.has(k) ? ' class="tn-add"' : '';
+        const pfx = chg.has(k) ? '△ ' : add.has(k) ? '+ ' : '';
+        return `<span${cls}>${pfx}${esc(k)}: ${esc(params[k])}</span>`;
+      }).join('<br>');
+      if (pKeys.length > 3) paramsHtml += `<br><span style="color:#4f46e5;font-weight:700">+${pKeys.length-3}件</span>`;
+    }
+
+    const resultsHtml = rKeys.length
+      ? '▶ ' + rKeys.slice(0,2).map(k => `${esc(k)}: ${esc(results[k])}`).join('  ')
+      : '';
+
+    const tagsHtml = (e.tags||[]).slice(0,4).map(t =>
+      `<span class="tn-tag" style="background:${tagColor(t)}22;color:${tagColor(t)}">${esc(t)}</span>`
+    ).join('');
+
+    nSvg += `
+      <g class="ng" data-id="${e.id}" transform="translate(${p.x},${p.y})" style="cursor:pointer;${shadow}">
+        <rect width="${NW}" height="${NH}" rx="10"
+          fill="white" stroke="${bStroke}" stroke-width="${bWidth}"/>
+        <rect width="5" height="${NH}" rx="2" fill="${accent}" opacity="0.9"/>
+        <foreignObject x="7" y="0" width="${NW-9}" height="${NH}">
+          <div xmlns="http://www.w3.org/1999/xhtml" class="tn">
+            <div class="tn-name" title="${esc(e.name)}">${esc(e.name)}</div>
+            <div class="tn-params">${paramsHtml}</div>
+            ${resultsHtml ? `<div class="tn-results">${resultsHtml}</div>` : ''}
+            ${tagsHtml    ? `<div class="tn-tags">${tagsHtml}</div>` : ''}
+          </div>
+        </foreignObject>
+      </g>`;
+  }
+
+  eL.innerHTML = eSvg;
+  nL.innerHTML = nSvg;
+
+  nL.querySelectorAll('.ng').forEach(g => {
+    g.addEventListener('click', ev => { ev.stopPropagation(); selectExp(g.dataset.id); });
+    g.addEventListener('dblclick', ev => { ev.stopPropagation(); openModal(null, g.dataset.id); });
+  });
+}
+
+// ============================================================
+// Pan / Zoom
+// ============================================================
+function applyTf() {
+  document.getElementById('treeRoot').setAttribute('transform',
+    `translate(${tf.x},${tf.y}) scale(${tf.s})`);
+}
+
+function fitTree() {
+  const { pos } = computeLayout();
+  const ids = Object.keys(pos);
+  if (!ids.length) { tf = { x:60, y:60, s:1 }; applyTf(); return; }
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  for (const id of ids) {
+    const p = pos[id];
+    x0 = Math.min(x0,p.x); y0 = Math.min(y0,p.y);
+    x1 = Math.max(x1,p.x+NW); y1 = Math.max(y1,p.y+NH);
+  }
+  const svg = document.getElementById('treeSvg');
+  const sw = svg.clientWidth||800, sh = svg.clientHeight||600;
+  const tw = x1-x0+100, th = y1-y0+100;
+  const s = Math.min(sw/tw, sh/th, 1.2);
+  tf.s = s;
+  tf.x = (sw - tw*s)/2 - x0*s + 50*s;
+  tf.y = (sh - th*s)/2 - y0*s + 50*s;
+  applyTf();
+}
+
+function initSvg() {
+  const svg = document.getElementById('treeSvg');
+  svg.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    panning = true;
+    panO = { mx:e.clientX, my:e.clientY, tx:tf.x, ty:tf.y };
+    svg.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove', e => {
+    if (!panning) return;
+    tf.x = panO.tx + (e.clientX - panO.mx);
+    tf.y = panO.ty + (e.clientY - panO.my);
+    applyTf();
+  });
+  window.addEventListener('mouseup', () => { panning = false; svg.style.cursor = 'grab'; });
+  svg.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = svg.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const f = e.deltaY < 0 ? 1.1 : 0.9;
+    const ns = Math.max(0.15, Math.min(3, tf.s * f));
+    tf.x = mx - (mx - tf.x) * (ns / tf.s);
+    tf.y = my - (my - tf.y) * (ns / tf.s);
+    tf.s = ns; applyTf();
+  }, { passive: false });
+  svg.addEventListener('click', e => {
+    const t = e.target;
+    if (t === svg || t.id === 'treeRoot' || t.id === 'edgeLayer' || t.id === 'nodeLayer') deselect();
+  });
+}
+
+// ============================================================
+// Selection & Detail Panel
+// ============================================================
+function selectExp(id) {
+  selId = id;
+  renderTree();
+  renderDetailPanel(byId(id));
+}
+
+function deselect() {
+  selId = null;
+  renderTree();
+  document.getElementById('detailPanel').style.display = 'none';
+}
+
+function renderDetailPanel(e) {
+  if (!e) return;
+  const panel = document.getElementById('detailPanel');
+  panel.style.display = 'flex';
+  document.getElementById('dpName').textContent = e.name;
+
+  const par = e.parentId ? byId(e.parentId) : null;
+  const pp  = par?.params  || {};
+  const pr  = par?.results || {};
+  const cp  = e.params  || {};
+  const cr  = e.results || {};
+
+  const allPK = [...new Set([...Object.keys(pp), ...Object.keys(cp)])];
+  const allRK = [...new Set([...Object.keys(pr), ...Object.keys(cr)])];
+
+  let h = '';
+
+  // Tags
+  if (e.tags?.length) {
+    h += `<div><div class="sec-title">タグ</div><div class="dp-tags">
+      ${e.tags.map(t=>`<span class="dp-tag" style="background:${tagColor(t)}22;color:${tagColor(t)}">${esc(t)}</span>`).join('')}
+    </div></div>`;
+  }
+
+  // Hypothesis
+  if (e.hypothesis) {
+    h += `<div><div class="sec-title">仮説・動機</div><div class="dp-hyp">${esc(e.hypothesis)}</div></div>`;
+  }
+
+  // Params
+  h += `<div><div class="sec-title">パラメータ</div>`;
+  if (allPK.length) {
+    h += '<div class="kv-grid">';
+    for (const k of allPK) {
+      const pv = pp[k], cv = cp[k];
+      let badge = '', cls = '';
+      if      (cv === undefined) { badge = '<span class="diff-badge db-del">削除</span>'; }
+      else if (pv === undefined) { badge = '<span class="diff-badge db-add">+ 追加</span>'; cls = 'add'; }
+      else if (pv !== cv)        { badge = '<span class="diff-badge db-chg">△ 変更</span>'; cls = 'chg'; }
+      const display = cv ?? `(→ 削除)`;
+      h += `<span class="kv-key">${esc(k)}${badge}</span><span class="kv-val ${cls}">${esc(display)}</span>`;
+    }
+    h += '</div>';
+  } else {
+    h += '<p style="font-size:0.78rem;color:var(--text-muted)">なし</p>';
+  }
+  h += '</div>';
+
+  // Results
+  if (allRK.length) {
+    h += `<div><div class="sec-title">結果</div><div class="kv-grid">`;
+    for (const k of allRK) {
+      const pv = pr[k], cv = cr[k];
+      let badge = '', cls = 'res';
+      if      (cv === undefined) { badge = '<span class="diff-badge db-del">削除</span>'; cls = ''; }
+      else if (pv === undefined) { badge = '<span class="diff-badge db-add">+ 追加</span>'; }
+      else if (pv !== cv)        { badge = '<span class="diff-badge db-chg">△ 変更</span>'; }
+      const display = cv ?? `(→ 削除)`;
+      h += `<span class="kv-key">${esc(k)}${badge}</span><span class="kv-val ${cls}">${esc(display)}</span>`;
+    }
+    h += '</div></div>';
+  }
+
+  // Comment
+  if (e.comment) {
+    h += `<div><div class="sec-title">コメント</div><div class="dp-comment">${esc(e.comment)}</div></div>`;
+  }
+
+  // Parent
+  if (par) {
+    h += `<div><div class="sec-title">親実験</div>
+      <span class="parent-link" data-id="${par.id}">${esc(par.name)}</span></div>`;
+  }
+
+  // Children
+  const children = exps.filter(x => x.parentId === e.id);
+  if (children.length) {
+    h += `<div><div class="sec-title">子実験 (${children.length})</div>
+      <div style="display:flex;flex-direction:column;gap:0.25rem">
+      ${children.map(c => `<span class="parent-link" data-id="${c.id}">${esc(c.name)}</span>`).join('')}
+      </div></div>`;
+  }
+
+  h += `<div style="font-size:0.72rem;color:var(--text-muted)">作成: ${fmtDate(e.createdAt)}</div>`;
+
+  document.getElementById('dpBody').innerHTML = h;
+
+  document.getElementById('dpBody').querySelectorAll('.parent-link').forEach(el => {
+    el.addEventListener('click', () => selectExp(el.dataset.id));
+  });
+
+  document.getElementById('addChildBtn').onclick = () => openModal(e.id, null);
+  document.getElementById('editBtn').onclick     = () => openModal(null, e.id);
+  document.getElementById('delBtn').onclick      = () => deleteExp(e.id);
+}
+
+// ============================================================
+// List View
+// ============================================================
+function renderList() {
+  const filtered = tagFilt ? exps.filter(e => e.tags?.includes(tagFilt)) : exps;
+  const tbody    = document.getElementById('listBody');
+  const empty    = document.getElementById('listEmpty');
+  const wrap     = document.getElementById('listWrap');
+
+  // Tag filter bar
+  const bar = document.getElementById('listTagBar');
+  const allT = getAllTags();
+  let barH = '';
+  if (allT.length) {
+    barH += '<span style="font-size:0.75rem;font-weight:700;color:var(--text-muted)">絞り込み: </span>';
+    if (tagFilt) barH += `<span class="fc clr" data-t="">✕ 解除</span>`;
+    for (const t of allT) {
+      const bg = `${tagColor(t)}22`, fg = tagColor(t);
+      barH += `<span class="fc${tagFilt===t?' act':''}" data-t="${esc(t)}" style="background:${bg};color:${fg}">${esc(t)}</span>`;
+    }
+  }
+  bar.innerHTML = barH;
+  bar.querySelectorAll('.fc').forEach(c => {
+    c.addEventListener('click', () => { tagFilt = c.dataset.t || null; renderList(); });
+  });
+
+  if (!filtered.length) {
+    wrap.style.display  = 'none';
+    empty.style.display = 'block';
+    updateCmpBar();
+    return;
+  }
+  wrap.style.display  = '';
+  empty.style.display = 'none';
+
+  let h = '';
+  filtered.forEach((e, i) => {
+    const par   = e.parentId ? byId(e.parentId) : null;
+    const pKeys = Object.keys(e.params  || {});
+    const rKeys = Object.keys(e.results || {});
+    const pPrv  = pKeys.slice(0,2).map(k=>`${k}:${e.params[k]}`).join(' ');
+    const rPrv  = rKeys.slice(0,2).map(k=>`${k}:${e.results[k]}`).join(' ');
+    const tagsH = (e.tags||[]).map(t =>
+      `<span class="tag-chip" style="background:${tagColor(t)}22;color:${tagColor(t)}">${esc(t)}</span>`
+    ).join('');
+    h += `<tr>
+      <td><input type="checkbox" class="lcb" data-id="${e.id}" ${cmpIds.has(e.id)?'checked':''}></td>
+      <td style="color:var(--text-muted);font-size:0.72rem">${filtered.length-i}</td>
+      <td><span class="name-link" data-id="${e.id}">${esc(e.name)}</span></td>
+      <td>${par?`<span class="name-link" data-id="${par.id}" style="font-size:0.75rem">${esc(par.name)}</span>`:'—'}</td>
+      <td><div class="tags-cell">${tagsH||'—'}</div></td>
+      <td class="mono-cell">${esc(pPrv)||'—'}</td>
+      <td class="res-cell">${esc(rPrv)||'—'}</td>
+      <td class="date-cell">${fmtDate(e.createdAt)}</td>
+      <td class="act-cell">
+        <button class="btn btn-outline btn-xs" data-a="edit" data-id="${e.id}">編集</button>
+        <button class="btn btn-danger  btn-xs" data-a="del"  data-id="${e.id}">削除</button>
+      </td>
+    </tr>`;
+  });
+  tbody.innerHTML = h;
+
+  tbody.querySelectorAll('.name-link').forEach(el => {
+    el.addEventListener('click', () => { switchView('tree'); setTimeout(() => selectExp(el.dataset.id), 60); });
+  });
+  tbody.querySelectorAll('[data-a="edit"]').forEach(b => b.addEventListener('click', () => openModal(null, b.dataset.id)));
+  tbody.querySelectorAll('[data-a="del"]') .forEach(b => b.addEventListener('click', () => deleteExp(b.dataset.id)));
+  tbody.querySelectorAll('.lcb').forEach(cb => {
+    cb.addEventListener('change', () => {
+      cb.checked ? cmpIds.add(cb.dataset.id) : cmpIds.delete(cb.dataset.id);
+      updateCmpBar();
+    });
+  });
+  updateCmpBar();
+}
+
+function updateCmpBar() {
+  const bar = document.getElementById('cmpBar');
+  const n = cmpIds.size;
+  bar.style.display = n > 0 ? 'flex' : 'none';
+  document.getElementById('cmpCount').textContent = `${n} 件選択中`;
+  document.getElementById('doCmpBtn').disabled = n < 2;
+}
+
+// ============================================================
+// Compare View
+// ============================================================
+function renderCompare() {
+  const sel   = exps.filter(e => cmpIds.has(e.id));
+  const table = document.getElementById('cmpTable');
+  if (sel.length < 2) {
+    table.innerHTML = '<tr><td style="padding:2rem;color:var(--text-muted)">リストビューで2件以上チェックしてから「比較する」を押してください</td></tr>';
+    return;
+  }
+  const pKeys = [...new Set(sel.flatMap(e => Object.keys(e.params  || {})))];
+  const rKeys = [...new Set(sel.flatMap(e => Object.keys(e.results || {})))];
+
+  let h = '<thead><tr><th class="rh">項目</th>';
+  for (const e of sel) h += `<th>${esc(e.name)}<br><span style="font-size:0.68rem;opacity:0.75;font-weight:400">${fmtDate(e.createdAt)}</span></th>`;
+  h += '</tr></thead><tbody>';
+
+  const row = (label, vals, cls='', extra='') => {
+    const same = vals.every(v => v === vals[0]);
+    h += `<tr><td class="rl">${label}</td>`;
+    vals.forEach(v => {
+      const dc = !same && v !== '—' ? 'diff ' : '';
+      h += `<td class="${dc}${cls}" ${extra}>${esc(v)}</td>`;
+    });
+    h += '</tr>';
+  };
+
+  row('タグ', sel.map(e => (e.tags||[]).join(', ') || '—'));
+
+  if (pKeys.length) {
+    h += `<tr><td class="rl" colspan="${sel.length+1}" style="background:#f5f3ff;color:#7c3aed;font-size:0.68rem;padding:0.25rem 1rem">パラメータ</td></tr>`;
+    for (const k of pKeys) row(k, sel.map(e => (e.params||{})[k]??'—'), 'mono');
+  }
+  if (rKeys.length) {
+    h += `<tr><td class="rl" colspan="${sel.length+1}" style="background:#ecfdf5;color:#059669;font-size:0.68rem;padding:0.25rem 1rem">結果</td></tr>`;
+    for (const k of rKeys) row(k, sel.map(e => (e.results||{})[k]??'—'), 'gv');
+  }
+
+  row('仮説', sel.map(e => e.hypothesis || '—'));
+  row('コメント', sel.map(e => e.comment || '—'));
+  h += '</tbody>';
+  table.innerHTML = h;
+}
+
+// ============================================================
+// View Switching
+// ============================================================
+function switchView(v) {
+  view = v;
+  document.querySelectorAll('.view-tabs button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+  ['tree','list','compare'].forEach(n => {
+    document.getElementById(`view-${n}`).style.display = n===v ? '' : 'none';
+  });
+  if (v !== 'tree') document.getElementById('detailPanel').style.display = 'none';
+  if (v === 'tree')    { renderTree(); if (selId) renderDetailPanel(byId(selId)); }
+  if (v === 'list')    { renderList(); }
+  if (v === 'compare') { renderCompare(); }
+}
+
+// ============================================================
+// Modal
+// ============================================================
+function openModal(parentId, eId) {
+  editId = eId || null;
+  mPid   = parentId || null;
+  mTags = []; mParams = []; mResults = [];
+
+  // Parent dropdown
+  const pSel = document.getElementById('fParent');
+  pSel.innerHTML = '<option value="">なし（ルート実験）</option>';
+  for (const e of exps) {
+    if (e.id === eId) continue;
+    const o = document.createElement('option');
+    o.value = e.id; o.textContent = e.name;
+    pSel.appendChild(o);
+  }
+
+  if (eId) {
+    const e = byId(eId); if (!e) return;
+    document.getElementById('modalTitle').textContent = '実験を編集';
+    document.getElementById('fName').value    = e.name;
+    document.getElementById('fHyp').value     = e.hypothesis || '';
+    document.getElementById('fComment').value = e.comment    || '';
+    pSel.value = e.parentId || '';
+    mTags    = [...(e.tags    || [])];
+    mParams  = Object.entries(e.params  || {}).map(([k,v])=>({k,v}));
+    mResults = Object.entries(e.results || {}).map(([k,v])=>({k,v}));
+  } else {
+    document.getElementById('modalTitle').textContent = parentId ? '子実験を追加' : '新規実験';
+    document.getElementById('fName').value    = '';
+    document.getElementById('fHyp').value     = '';
+    document.getElementById('fComment').value = '';
+    pSel.value = parentId || '';
+    if (parentId) {
+      const pe = byId(parentId);
+      if (pe) {
+        mParams  = Object.entries(pe.params  || {}).map(([k,v])=>({k,v}));
+        mResults = Object.entries(pe.results || {}).map(([k,v])=>({k,v:''}));
+      }
+    }
+  }
+
+  renderMTags(); renderPE('paramsEd', mParams); renderPE('resultsEd', mResults);
+  document.getElementById('modalOverlay').classList.add('open');
+  document.getElementById('fName').focus();
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+
+function renderMTags() {
+  const w = document.getElementById('tagsWrap');
+  const inp = document.getElementById('fTagInp');
+  w.querySelectorAll('.tc').forEach(c => c.remove());
+  mTags.forEach((t, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'tc';
+    chip.innerHTML = `${esc(t)} <button class="tc-rm" data-i="${i}">&times;</button>`;
+    w.insertBefore(chip, inp);
+  });
+  w.querySelectorAll('.tc-rm').forEach(b => {
+    b.addEventListener('click', () => { mTags.splice(+b.dataset.i, 1); renderMTags(); });
+  });
+}
+
+function renderPE(id, arr) {
+  const el = document.getElementById(id);
+  let h = '';
+  arr.forEach((p, i) => {
+    h += `<div class="pr">
+      <input type="text" class="pk" data-i="${i}" placeholder="名前" value="${esc(p.k)}">
+      <input type="text" class="pv" data-i="${i}" placeholder="値"   value="${esc(p.v)}">
+      <button class="pr-rm" data-i="${i}">&times;</button>
+    </div>`;
+  });
+  el.innerHTML = h;
+  el.querySelectorAll('.pk').forEach(inp => inp.addEventListener('input', () => arr[+inp.dataset.i].k = inp.value));
+  el.querySelectorAll('.pv').forEach(inp => inp.addEventListener('input', () => arr[+inp.dataset.i].v = inp.value));
+  el.querySelectorAll('.pr-rm').forEach(b => b.addEventListener('click', () => {
+    arr.splice(+b.dataset.i, 1); renderPE(id, arr);
+  }));
+}
+
+function saveModal() {
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { document.getElementById('fName').focus(); return; }
+
+  const parentId   = document.getElementById('fParent').value   || null;
+  const hypothesis = document.getElementById('fHyp').value.trim();
+  const comment    = document.getElementById('fComment').value.trim();
+  const params = {}, results = {};
+  for (const p of mParams)  if (p.k.trim()) params[p.k.trim()]  = p.v;
+  for (const p of mResults) if (p.k.trim()) results[p.k.trim()] = p.v;
+
+  const now = new Date().toISOString();
+  if (editId) {
+    const idx = exps.findIndex(e => e.id === editId);
+    if (idx !== -1) exps[idx] = { ...exps[idx], name, parentId, hypothesis, tags:[...mTags], params, results, comment, updatedAt: now };
+  } else {
+    exps.push({ id: uid(), name, parentId, hypothesis, tags:[...mTags], params, results, comment, createdAt: now, updatedAt: now });
+  }
+
+  persist();
+  closeModal();
+  if (view === 'tree') {
+    renderTree();
+    if (editId && selId === editId) renderDetailPanel(byId(editId));
+    if (!editId) setTimeout(fitTree, 50);
+  } else {
+    renderList();
+  }
+}
+
+// ============================================================
+// Delete
+// ============================================================
+function deleteExp(id) {
+  const e = byId(id); if (!e) return;
+  const kids = exps.filter(x => x.parentId === id).length;
+  const msg  = kids
+    ? `「${e.name}」を削除しますか？\n子実験 ${kids} 件は親なし（ルート）になります。`
+    : `「${e.name}」を削除しますか？`;
+  if (!confirm(msg)) return;
+  exps = exps.filter(x => x.id !== id);
+  exps.forEach(x => { if (x.parentId === id) x.parentId = null; });
+  persist();
+  if (selId === id) { selId = null; document.getElementById('detailPanel').style.display = 'none'; }
+  cmpIds.delete(id);
+  view === 'tree' ? renderTree() : renderList();
+}
+
+// ============================================================
+// Export CSV
+// ============================================================
+function exportCSV() {
+  if (!exps.length) { alert('実験がありません'); return; }
+  const pKeys = [...new Set(exps.flatMap(e => Object.keys(e.params  || {})))];
+  const rKeys = [...new Set(exps.flatMap(e => Object.keys(e.results || {})))];
+  const hdr = ['ID','実験名','親実験名','仮説','タグ',...pKeys.map(k=>`[P]${k}`),...rKeys.map(k=>`[R]${k}`),'コメント','作成日時'];
+  const rows = exps.map(e => {
+    const par = e.parentId ? byId(e.parentId) : null;
+    return [e.id, e.name, par?.name||'', e.hypothesis||'', (e.tags||[]).join(';'),
+      ...pKeys.map(k=>(e.params||{})[k]??''), ...rKeys.map(k=>(e.results||{})[k]??''),
+      e.comment||'', fmtDate(e.createdAt)
+    ].map(v => `"${String(v).replace(/"/g,'""')}"`);
+  });
+  const csv  = [hdr.map(h=>`"${h}"`).join(','), ...rows.map(r=>r.join(','))].join('\r\n');
+  const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });
+  const a    = Object.assign(document.createElement('a'), { href:URL.createObjectURL(blob), download:`experiments_${new Date().toISOString().slice(0,10)}.csv` });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ============================================================
+// JSON Export / Import
+// ============================================================
+function exportJSON() {
+  if (!exps.length) { alert('実験がありません'); return; }
+  const data = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), exps }, null, 2);
+  const blob = new Blob([data], { type: 'application/json;charset=utf-8;' });
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: `experiments_${new Date().toISOString().slice(0,10)}.json`
+  });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+function importJSON(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    let data;
+    try {
+      data = JSON.parse(e.target.result);
+    } catch {
+      alert('JSONの読み込みに失敗しました。ファイルが壊れているか、形式が違います。'); return;
+    }
+
+    const incoming = data.exps || data.experiments;
+    if (!Array.isArray(incoming) || !incoming.length) {
+      alert('有効な実験データが見つかりませんでした。'); return;
+    }
+
+    if (exps.length === 0) {
+      exps = incoming;
+      persist(); renderTree(); setTimeout(fitTree, 80);
+      alert(`${incoming.length} 件の実験を読み込みました。`);
+      return;
+    }
+
+    const choice = confirm(
+      `現在 ${exps.length} 件の実験があります。\n\n` +
+      `OK → 既存データに追加（重複IDはスキップ）\n` +
+      `キャンセル → 既存データをすべて置き換える`
+    );
+
+    if (choice) {
+      // Merge: skip duplicates by ID
+      const existingIds = new Set(exps.map(e => e.id));
+      const added = incoming.filter(e => !existingIds.has(e.id));
+      exps = [...exps, ...added];
+      persist(); renderTree(); setTimeout(fitTree, 80);
+      alert(`${added.length} 件追加しました（${incoming.length - added.length} 件は重複のためスキップ）。`);
+    } else {
+      if (!confirm('既存データをすべて削除して置き換えます。よろしいですか？')) return;
+      exps = incoming;
+      selId = null;
+      document.getElementById('detailPanel').style.display = 'none';
+      persist(); renderTree(); setTimeout(fitTree, 80);
+      alert(`${incoming.length} 件の実験を読み込みました。`);
+    }
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+// ============================================================
+// Event Listeners
+// ============================================================
+document.getElementById('newRootBtn')   .addEventListener('click', () => openModal(null, null));
+document.getElementById('exportBtn')   .addEventListener('click', exportCSV);
+document.getElementById('jsonExportBtn').addEventListener('click', exportJSON);
+document.getElementById('jsonImportBtn').addEventListener('click', () => document.getElementById('jsonFileInput').click());
+document.getElementById('jsonFileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) { importJSON(file); e.target.value = ''; }
+});
+document.getElementById('dpClose')   .addEventListener('click', deselect);
+document.getElementById('zoomInBtn') .addEventListener('click', () => { tf.s = Math.min(3, tf.s*1.2); applyTf(); });
+document.getElementById('zoomOutBtn').addEventListener('click', () => { tf.s = Math.max(0.15, tf.s*0.8); applyTf(); });
+document.getElementById('fitBtn')    .addEventListener('click', fitTree);
+
+document.querySelector('.view-tabs').addEventListener('click', e => {
+  const v = e.target.dataset?.view; if (v) switchView(v);
+});
+
+document.getElementById('doCmpBtn')    .addEventListener('click', () => switchView('compare'));
+document.getElementById('clearCmpBtn').addEventListener('click', () => { cmpIds.clear(); renderList(); });
+document.getElementById('backFromCmp').addEventListener('click', () => switchView('list'));
+
+document.getElementById('modalClose') .addEventListener('click', closeModal);
+document.getElementById('modalCancel').addEventListener('click', closeModal);
+document.getElementById('modalSave')  .addEventListener('click', saveModal);
+
+document.getElementById('addParamBtn').addEventListener('click', () => {
+  mParams.push({k:'',v:''});
+  renderPE('paramsEd', mParams);
+  document.querySelectorAll('#paramsEd .pk').forEach((el,i,a) => { if(i===a.length-1) el.focus(); });
+});
+document.getElementById('addResBtn').addEventListener('click', () => {
+  mResults.push({k:'',v:''});
+  renderPE('resultsEd', mResults);
+  document.querySelectorAll('#resultsEd .pk').forEach((el,i,a) => { if(i===a.length-1) el.focus(); });
+});
+
+document.getElementById('modalOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if ((e.ctrlKey||e.metaKey) && e.key === 'Enter'
+      && document.getElementById('modalOverlay').classList.contains('open')) saveModal();
+});
+
+document.getElementById('fTagInp').addEventListener('keydown', e => {
+  const inp = e.target;
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    const v = inp.value.trim().replace(/,$/,'');
+    if (v && !mTags.includes(v)) { mTags.push(v); renderMTags(); }
+    inp.value = '';
+  } else if (e.key === 'Backspace' && !inp.value && mTags.length) {
+    mTags.pop(); renderMTags();
+  }
+});
+document.getElementById('tagsWrap').addEventListener('click', () => document.getElementById('fTagInp').focus());
+
+// ============================================================
+// Init
+// ============================================================
+load();
+initSvg();
+renderTree();
+setTimeout(fitTree, 120);
+</script>
+</body>
+</html>
